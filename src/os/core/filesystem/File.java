@@ -1,0 +1,102 @@
+package os.core.filesystem;
+
+import java.util.ArrayList;
+
+public class File
+{
+    private String name;
+    private String extension;
+
+    private String content;
+
+    private final Folder parentFolder;
+
+    public File(String name, Folder parentFolder)
+    {
+        String[] _name = decodeName(name);
+
+        this.name = _name[0];
+        this.extension = _name[1];
+
+        this.content = "";
+
+        this.parentFolder = parentFolder;
+    }
+
+    private static String[] decodeName(String name)
+    {
+        String[] sub = name.split("\\.");
+
+        if (sub.length == 1)
+            return new String[]{sub[0], ""};
+
+        String[] out = {"", ""};
+
+        for (int i = 0; i < sub.length - 1; i++)
+        {
+            out[0] += sub[i];
+        }
+
+        out[1] = sub[sub.length - 1];
+
+        return out;
+    }
+
+    public void rename(String newName)
+    {
+        String[] _name = decodeName(newName);
+
+        this.name = _name[0];
+        this.extension = _name[1];
+    }
+
+	public String getContents()
+	{
+		return this.content;
+	}
+
+	public void setContents(String lines)
+	{
+		this.content = lines;
+	}
+
+    public String getName()
+    {
+        return this.name;
+    }
+
+    public String getType()
+    {
+        return this.extension;
+    }
+
+    public String getFullName()
+    {
+		if (!this.extension.isEmpty())
+            return this.name + '.' + this.extension;
+		else
+			return this.name;
+    }
+
+    public Folder getParentFolder()
+    {
+        return this.parentFolder;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        File file = (File) o;
+
+        return getFullName().equals(file.getFullName());
+    }
+
+    @Override
+    public String toString()
+    {
+        return this.name + "." + this.extension;
+    }
+}

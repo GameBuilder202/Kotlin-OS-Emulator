@@ -1,0 +1,149 @@
+package os.core.filesystem;
+
+import os.core.shell.Shell;
+
+import java.io.PrintStream;
+import java.util.ArrayList;
+
+public class Folder
+{
+    private String name;
+    private final Folder parentFolder;
+
+    private final ArrayList<File> files;
+    private final ArrayList<Folder> folders;
+
+    public Folder(String name)
+    {
+        this(name, null);
+    }
+
+    public Folder(String name, Folder parentFolder)
+    {
+        this.name = name;
+        this.parentFolder = parentFolder;
+
+        this.folders = new ArrayList<>();
+        this.files = new ArrayList<>();
+    }
+
+    public boolean addFile(File file)
+    {
+        for (File file1: this.files)
+            if (file1.equals(file))
+            {
+                return false;
+            }
+
+        return this.files.add(file);
+    }
+
+    public File getFile(String name)
+    {
+		String[] nameSplit = name.split("\\.");
+		if (nameSplit.length < 2) nameSplit = new String[]{nameSplit[0], ""};
+
+        for (File file: this.files)
+            if (file.getFullName().equals(name))
+                return file;
+
+        return null;
+    }
+
+    public boolean removeFile(String name)
+    {
+        return this.files.remove(this.getFile(name));
+    }
+
+    public boolean addFolder(Folder folder)
+    {
+        for (Folder folder1: this.folders)
+            if (folder1.equals(folder))
+                return false;
+
+        return this.folders.add(folder);
+    }
+
+    public Folder getFolder(String name)
+    {
+        for (Folder folder: this.folders)
+            if (folder.getName().equals(name))
+                return folder;
+
+        return null;
+    }
+
+    public boolean removeFolder(String name)
+    {
+        return this.folders.remove(this.getFolder(name));
+    }
+
+    public Folder getParentFolder()
+    {
+        return this.parentFolder;
+    }
+
+    public String getName()
+    {
+        return this.name;
+    }
+
+	public String getFullPath()
+	{
+		Folder pathFolder = this;
+
+		Folder parentFolder;
+		StringBuilder fullPath = new StringBuilder();
+		while ((parentFolder = pathFolder.getParentFolder()) != null)
+		{
+			fullPath.insert(0, '/' + pathFolder.getName());
+			pathFolder = parentFolder;
+		}
+		fullPath.insert(0, "root");
+		return fullPath.toString();
+	}
+
+    public void rename(String newName)
+    {
+        this.name = newName;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Folder folder = (Folder) o;
+
+        return getName().equals(folder.getName());
+    }
+
+    public void printTree(PrintStream printStream)
+    {
+        this.printTree(0, printStream);
+    }
+
+    public void printTree(int tabCount, PrintStream printStream)
+    {
+        printStream.print("\033[32m");
+        printStream.println("  ".repeat(tabCount) + this.name + '/');
+        printStream.print(Shell.RESET);
+
+        for (Folder folder: this.folders)
+            folder.printTree(tabCount + 1, printStream);
+        for (File file: this.files)
+            printStream.println("  ".repeat(tabCount) + file.getFullName());
+    }
+
+    public void printNames(PrintStream printStream)
+    {
+        printStream.print("\033[32m");
+        for (Folder folder: this.folders)
+            printStream.println(folder.getName() + '/');
+        printStream.print(Shell.RESET);
+
+        for (File file: this.files)
+            printStream.println(file.getFullName());
+    }
+}
