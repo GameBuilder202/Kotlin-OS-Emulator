@@ -1,2 +1,7 @@
 # Project exclude paths
 /out/
+
+/.idea/
+/OS.iml
+/osinfo-0.json
+/osinfo-copy.json
