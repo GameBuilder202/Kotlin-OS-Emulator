@@ -29,9 +29,6 @@ public class Shell
 
 	private JSONObject rootObject;
 
-	private static int idCounter = 0;
-	private final int id;
-
 	private static final String _default =
 			"""
 			{
@@ -141,6 +138,11 @@ public class Shell
 				"""
 				Shows information about the OS
 				""");
+		helpMap.put("pwd",
+				"""
+				Prints the current working directory
+				This is usually the current directory
+				""");
 	}
 
 	public Shell(InputStream inputStream, PrintStream printStream)
@@ -148,8 +150,6 @@ public class Shell
 		this.in = inputStream;
 		this.scanner = new Scanner(this.in);
 		this.printStream = printStream;
-
-		this.id = idCounter++;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -246,6 +246,7 @@ public class Shell
 								vim - Open a command line text editor
 								info - Prints info about the OS
 								jpkg - Package manager (not implemented)
+								pwd - Prints the working directory
 								""");
 					}
 					else if (cmds.length == 2)
@@ -632,7 +633,7 @@ public class Shell
 
 	private void initRootObj()
 	{
-		try (FileReader reader = new FileReader("osinfo-" + this.id + ".json"))
+		try (FileReader reader = new FileReader("osinfo.json"))
 		{
 			JSONParser parser = new JSONParser();
 
@@ -658,7 +659,7 @@ public class Shell
 			this.printStream.println("No file found for current os info data, creating default installation...");
 			this.printStream.print  (RESET);
 
-			try (Writer writer = new FileWriter("osinfo-" + this.id + ".json"))
+			try (Writer writer = new FileWriter("osinfo.json"))
 			{
 				writer.write(prettyPrintJSON(_default));
 			}
@@ -694,7 +695,7 @@ public class Shell
 
 	private void updateJSONFile(String JSONString)
 	{
-		try (Writer writer = new FileWriter("osinfo-" + this.id + ".json"))
+		try (Writer writer = new FileWriter("osinfo.json"))
 		{
 			writer.write(prettyPrintJSON(JSONString));
 		} catch (IOException ignored) {}
