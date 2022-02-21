@@ -8,8 +8,15 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
+
 import java.io.*;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,7 +54,7 @@ public class Shell
 				  "files": []
 				},
 				{
-				  "name": "libs",
+				  "name": "packages",
 				  "folders": [],
 				  "files": []
 				}
@@ -138,6 +145,15 @@ public class Shell
 				"""
 				Shows information about the OS
 				""");
+		helpMap.put("jpkg",
+				"""
+				JavaOS Package manager
+				All packages are installed to root/packages folder
+				Commands are:
+				install <name[@version]> - Install a package with the version if specified
+				remove <name>            - Remove a package
+				list                     - List all packages
+				""");
 		helpMap.put("pwd",
 				"""
 				Prints the current working directory
@@ -203,6 +219,7 @@ public class Shell
 		this.run();
 	}
 
+	@SuppressWarnings("unchecked")
 	private void run()
 	{
 		boolean shouldReboot = false;
@@ -245,7 +262,7 @@ public class Shell
 								ls - List all subfolders and files
 								vim - Open a command line text editor
 								info - Prints info about the OS
-								jpkg - Package manager (not implemented)
+								jpkg - Package manager
 								pwd - Prints the working directory
 								""");
 					}
@@ -497,7 +514,152 @@ public class Shell
 									"""
 								);
 
-				case "jpkg" -> this.printStream.println("Package manager has not been implemented yet");
+				case "jpkg" -> {
+					String packageUrl = "https://raw.githubusercontent.com/GameBuilder202/Java-OS-Packages/master";
+
+					try (CloseableHttpClient httpClient = HttpClientBuilder.create().build())
+					{
+						/*
+						 Reference commented code
+						 HttpGet request = new HttpGet(url);
+						 HttpResponse result = httpClient.execute(request);
+						 String json = EntityUtils.toString(result.getEntity(), "UTF-8");
+						*/
+
+						HttpGet request;
+						HttpResponse response;
+						String res;
+
+						switch (cmds[1])
+						{
+							case "install" -> {
+								String[] packageInput = cmds[2].split("@");
+								String packageName = packageInput[0];
+								boolean versionGiven = packageInput.length == 2;
+
+								if (this.rootFolder.getFolder("packages").getFolder(packageName) != null)
+								{
+									this.printStream.print(ERR);
+									this.printStream.println("Package already installed, aborting installation");
+									this.printStream.print(RESET);
+									break;
+								}
+
+								this.printStream.println("Getting package...");
+
+								packageUrl += packageName;
+								request = new HttpGet(packageUrl + "/versions.json");
+								response = httpClient.execute(request);
+								res = EntityUtils.toString(response.getEntity(), "UTF-8");
+
+								if (res.equals("404: Not Found"))
+								{
+									noSuch("package", cmds[2]);
+									break;
+								}
+
+								this.printStream.println("Found package, parsing data...");
+
+								try
+								{
+									final JSONParser parser = new JSONParser();
+									final JSONObject json = (JSONObject) parser.parse(res);
+
+									Pattern versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
+
+									String version = versionGiven ? packageInput[1] : (String) json.get("latest");
+									if (!versionMatcher.matcher(version).matches())
+									{
+										this.printStream.print(ERR);
+										this.printStream.println("Invalid version as input, contact package owner if you did not provide version");
+										this.printStream.print(RESET);
+										break;
+									}
+
+									request = new HttpGet(packageUrl + '/' + version + ".json");
+									response = httpClient.execute(request);
+									res = EntityUtils.toString(response.getEntity(), "UTF-8");
+
+									if (res.equals("404: Not Found"))
+									{
+										this.printStream.print(ERR);
+										this.printStream.println("Version " + version + " of package " + packageName + " not found");
+										this.printStream.print(RESET);
+									}
+
+									this.printStream.println("Parsing complete, installing...");
+
+									final JSONArray packageFiles = (JSONArray) parser.parse(res);
+									final Folder og_packageFolder = this.rootFolder.getFolder("packages");
+
+									og_packageFolder.addFolder(new Folder(packageName, og_packageFolder));
+									final Folder packageFolder = og_packageFolder.getFolder(packageName);
+
+									final File VersionFile = new File("VERSION", packageFolder);
+									VersionFile.setContents(version);
+									packageFolder.addFile(VersionFile); this.addFileToJSON(VersionFile, packageFolder);
+
+									this.addFolderToJSON(packageFolder, og_packageFolder);
+
+									for (Object file: packageFiles)
+									{
+										JSONObject _file = (JSONObject) file;
+
+										String fileName = ((String) _file.get("name")) + '.' + _file.get("type");
+										String fileContents = (String) _file.get("contents");
+
+										final File added = new File(fileName, packageFolder);
+										added.setContents(fileContents);
+										packageFolder.addFile(added); this.addFileToJSON(added, packageFolder);
+									}
+
+									this.updateJSONFile(this.rootObject.toJSONString());
+
+									this.printStream.println("Package installed!");
+								}
+								catch (ParseException e)
+								{
+									this.printStream.print(ERR);
+									this.printStream.println("Invalid package JSON, contact package owner about this issue");
+									this.printStream.print(RESET);
+								}
+							}
+
+							case "remove" -> {
+								if (!this.rootFolder.getFolder("packages").removeFolder(cmds[2]))
+								{
+									this.printStream.print(ERR);
+									this.printStream.println("Package not installed, nothing removed");
+									this.printStream.print(RESET);
+								}
+							}
+
+							case "list" -> {
+								Folder packageFolder = this.rootFolder.getFolder("packages");
+
+								try
+								{
+									// Use reflection to get and list all subfolders of packages class
+									Field f = packageFolder.getClass().getDeclaredField("folders");
+									f.setAccessible(true);
+									ArrayList<Folder> folders = (ArrayList<Folder>) f.get(packageFolder);
+
+									for (Folder folder: folders)
+										this.printStream.println(folder.getName());
+								}
+								catch (NoSuchFieldException | IllegalAccessException ignored) {}
+							}
+
+							default -> {
+								if (cmds[1].isEmpty() || cmds[1].startsWith("\t") || cmds[1].startsWith("\033"))
+									continue;
+
+								noSuch("command", cmds[1]);
+							}
+						}
+					}
+					catch (IOException ignored) {}
+				}
 
 				case "pwd" -> this.printStream.println(this.currentFullPath);
 
@@ -701,7 +863,6 @@ public class Shell
 		} catch (IOException ignored) {}
 	}
 
-	@SuppressWarnings("unchecked")
 	private void refreshRootFolderFromJSON(JSONObject folder, Folder currFolder)
 	{
 		String folderName = (String) folder.get("name");
@@ -722,13 +883,10 @@ public class Shell
 			{
 				JSONObject subFile = (JSONObject) files;
 				String fileName = ((String) subFile.get("name")) + '.' + subFile.get("type");
-				ArrayList<String> fileContents = new ArrayList<String>((JSONArray) subFile.get("contents"));
+				String fileContents = (String) subFile.get("contents");
 
 				File addedFile = new File(fileName, added);
-				StringBuilder newContents = new StringBuilder();
-				for (String line: fileContents)
-					newContents.append(line).append("\n");
-				addedFile.setContents(newContents.toString());
+				addedFile.setContents(fileContents);
 
 				added.addFile(addedFile);
 			}
