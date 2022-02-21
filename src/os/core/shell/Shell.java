@@ -17,6 +17,7 @@ import org.apache.http.util.EntityUtils;
 import java.io.*;
 
 import java.lang.reflect.Field;
+
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -408,13 +409,15 @@ public class Shell
 							cdFolder = cdFolder.getFolder(path);
 						}
 
-					} catch (ArrayIndexOutOfBoundsException e)
+					}
+					catch (ArrayIndexOutOfBoundsException e)
 					{
 						this.printStream.print  (ERR);
 						this.printStream.println("No folder name provided");
 						this.printStream.print  (RESET);
 						break;
-					} catch (NullPointerException e)
+					}
+					catch (NullPointerException e)
 					{
 						noSuch("folder", cmds[1]);
 						break;
@@ -505,7 +508,7 @@ public class Shell
 				}
 
 				case "info" -> this.printStream.print(
-                                    """
+									"""
 									JavaOS version 0.2.4
 									Compiled with Java version 16
 									
@@ -539,9 +542,9 @@ public class Shell
 
 								if (this.rootFolder.getFolder("packages").getFolder(packageName) != null)
 								{
-									this.printStream.print(ERR);
+									this.printStream.print  (ERR);
 									this.printStream.println("Package already installed, aborting installation");
-									this.printStream.print(RESET);
+									this.printStream.print  (RESET);
 									break;
 								}
 
@@ -570,9 +573,9 @@ public class Shell
 									String version = versionGiven ? packageInput[1] : (String) json.get("latest");
 									if (!versionMatcher.matcher(version).matches())
 									{
-										this.printStream.print(ERR);
+										this.printStream.print  (ERR);
 										this.printStream.println("Invalid version as input, contact package owner if you did not provide version");
-										this.printStream.print(RESET);
+										this.printStream.print  (RESET);
 										break;
 									}
 
@@ -582,9 +585,9 @@ public class Shell
 
 									if (res.equals("404: Not Found"))
 									{
-										this.printStream.print(ERR);
+										this.printStream.print  (ERR);
 										this.printStream.println("Version " + version + " of package " + packageName + " not found");
-										this.printStream.print(RESET);
+										this.printStream.print  (RESET);
 									}
 
 									this.printStream.println("Parsing complete, installing...");
@@ -619,18 +622,18 @@ public class Shell
 								}
 								catch (ParseException e)
 								{
-									this.printStream.print(ERR);
+									this.printStream.print  (ERR);
 									this.printStream.println("Invalid package JSON, contact package owner about this issue");
-									this.printStream.print(RESET);
+									this.printStream.print  (RESET);
 								}
 							}
 
 							case "remove" -> {
 								if (!this.rootFolder.getFolder("packages").removeFolder(cmds[2]))
 								{
-									this.printStream.print(ERR);
+									this.printStream.print  (ERR);
 									this.printStream.println("Package not installed, nothing removed");
-									this.printStream.print(RESET);
+									this.printStream.print  (RESET);
 								}
 							}
 
