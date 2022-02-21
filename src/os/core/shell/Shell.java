@@ -509,11 +509,10 @@ public class Shell
 
 				case "info" -> this.printStream.print(
 									"""
-									JavaOS version 0.2.4
+									JavaOS version 0.3.0
 									Compiled with Java version 16
 									
 									Package manager: jpkg
-									Current number of packages: 0
 									"""
 								);
 
