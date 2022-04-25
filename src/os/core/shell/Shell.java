@@ -1,5 +1,9 @@
 package os.core.shell;
 
+import org.kohsuke.github.GHContent;
+import org.kohsuke.github.GHFileNotFoundException;
+import org.kohsuke.github.GHRepository;
+import org.kohsuke.github.GitHub;
 import os.core.filesystem.File;
 import os.core.filesystem.Folder;
 
@@ -8,16 +12,9 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
-
 import java.io.*;
 
 import java.lang.reflect.Field;
-
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -247,7 +244,7 @@ public class Shell
 				case "help" -> {
 					if (cmds.length == 1)
 					{
-						this.printStream.println("Java OS v0.0.1");
+						this.printStream.println("Java OS v0.2.5");
 						this.printStream.println("Commands:");
 						this.printStream.print(
 								"""
@@ -509,36 +506,41 @@ public class Shell
 
 				case "info" -> this.printStream.print(
 									"""
-									JavaOS version 0.2.4
+									JavaOS version 0.2.5
 									Compiled with Java version 16
 									
 									Package manager: jpkg
-									Current number of packages: 0
 									"""
 								);
 
 				case "jpkg" -> {
-					String packageUrl = "https://raw.githubusercontent.com/GameBuilder202/Java-OS-Packages/master";
-
-					try (CloseableHttpClient httpClient = HttpClientBuilder.create().build())
+					try
 					{
-						/*
-						 Reference commented code
-						 HttpGet request = new HttpGet(url);
-						 HttpResponse result = httpClient.execute(request);
-						 String json = EntityUtils.toString(result.getEntity(), "UTF-8");
-						*/
+						final GHRepository repo = GitHub.connectAnonymously().getRepository("GameBuilder202/Java-OS-Packages");
 
-						HttpGet request;
-						HttpResponse response;
-						String res;
+						if (!(cmds.length > 1))
+						{
+							this.printStream.print  (ERR);
+							this.printStream.println("No operation provided");
+							this.printStream.print  (RESET);
+							break;
+						}
 
 						switch (cmds[1])
 						{
 							case "install" -> {
-								String[] packageInput = cmds[2].split("@");
-								String packageName = packageInput[0];
-								boolean versionGiven = packageInput.length == 2;
+								if (!(cmds.length > 2))
+								{
+									this.printStream.print  (ERR);
+									this.printStream.println("No package name provided");
+									this.printStream.print  (RESET);
+									break;
+								}
+
+								final String[] packageInput = cmds[2].split("@");
+								final String packageName = packageInput[0];
+								final boolean versionGiven = packageInput.length == 2;
+								final Pattern versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
 
 								if (this.rootFolder.getFolder("packages").getFolder(packageName) != null)
 								{
@@ -550,27 +552,28 @@ public class Shell
 
 								this.printStream.println("Getting package...");
 
-								packageUrl += packageName;
-								request = new HttpGet(packageUrl + "/versions.json");
-								response = httpClient.execute(request);
-								res = EntityUtils.toString(response.getEntity(), "UTF-8");
-
-								if (res.equals("404: Not Found"))
-								{
-									noSuch("package", cmds[2]);
-									break;
-								}
-
-								this.printStream.println("Found package, parsing data...");
-
 								try
 								{
 									final JSONParser parser = new JSONParser();
-									final JSONObject json = (JSONObject) parser.parse(res);
 
-									Pattern versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
+									final List<GHContent> content = repo.getDirectoryContent(packageName + '/');
+									GHContent versionFile = null;
+									for (GHContent file: content)
+										if (file.getName().equals("versions.json"))
+											versionFile = file;
 
+									if (versionFile == null)
+									{
+										this.printStream.print  (ERR);
+										this.printStream.println("No versions.json file found in package");
+										this.printStream.print  (RESET);
+										break;
+									}
+
+									this.printStream.println("Found package, parsing data...");
+									final JSONObject json = (JSONObject) parser.parse(new String(versionFile.read().readAllBytes()));
 									String version = versionGiven ? packageInput[1] : (String) json.get("latest");
+
 									if (!versionMatcher.matcher(version).matches())
 									{
 										this.printStream.print  (ERR);
@@ -579,62 +582,48 @@ public class Shell
 										break;
 									}
 
-									request = new HttpGet(packageUrl + '/' + version + ".json");
-									response = httpClient.execute(request);
-									res = EntityUtils.toString(response.getEntity(), "UTF-8");
+									GHContent file = null;
+									for (GHContent fileToCheck: content)
+										if (fileToCheck.getName().equals(version + ".json"))
+											file = fileToCheck;
 
-									if (res.equals("404: Not Found"))
+									if (file == null)
 									{
 										this.printStream.print  (ERR);
 										this.printStream.println("Version " + version + " of package " + packageName + " not found");
 										this.printStream.print  (RESET);
+										break;
 									}
 
-									this.printStream.println("Parsing complete, installing...");
+									this.printStream.println("Found package, installing...");
+									final JSONArray packageFiles = (JSONArray) parser.parse(new String(file.read().readAllBytes()));
+									final Folder packageFolder = new Folder(packageName, this.rootFolder.getFolder("packages"));
+									this.rootFolder.getFolder("packages").addFolder(packageFolder);  this.addFolderToJSON(packageFolder, this.rootFolder.getFolder("packages"));
 
-									final JSONArray packageFiles = (JSONArray) parser.parse(res);
-									final Folder og_packageFolder = this.rootFolder.getFolder("packages");
-
-									og_packageFolder.addFolder(new Folder(packageName, og_packageFolder));
-									final Folder packageFolder = og_packageFolder.getFolder(packageName);
-
-									final File VersionFile = new File("VERSION", packageFolder);
-									VersionFile.setContents(version);
-									packageFolder.addFile(VersionFile); this.addFileToJSON(VersionFile, packageFolder);
-
-									this.addFolderToJSON(packageFolder, og_packageFolder);
-
-									for (Object file: packageFiles)
 									{
-										JSONObject _file = (JSONObject) file;
-
-										String fileName = ((String) _file.get("name")) + '.' + _file.get("type");
-										String fileContents = (String) _file.get("contents");
-
-										final File added = new File(fileName, packageFolder);
-										added.setContents(fileContents);
-										packageFolder.addFile(added); this.addFileToJSON(added, packageFolder);
+										final File VersionFile = new File("VERSION", packageFolder);
+										VersionFile.setContents(version);
+										packageFolder.addFile(VersionFile);  this.addFileToJSON(VersionFile, packageFolder);
 									}
 
+									for (Object fileToInstall: packageFiles)
+									{
+										final JSONObject fileToInstallJSON = (JSONObject) fileToInstall;
+										final String fileName = (String) fileToInstallJSON.get("name") + '.' + fileToInstallJSON.get("type");
+										final String fileContents = (String) fileToInstallJSON.get("contents");
+										final File installFile = new File(fileName, packageFolder);
+										installFile.setContents(fileContents);
+										packageFolder.addFile(installFile);  this.addFileToJSON(installFile, packageFolder);
+									}
 									this.updateJSONFile(this.rootObject.toJSONString());
 
-									this.printStream.println("Package installed!");
+									this.printStream.println("Package installed successfully");
 								}
-								catch (ParseException e)
+								catch (GHFileNotFoundException e)
 								{
-									this.printStream.print  (ERR);
-									this.printStream.println("Invalid package JSON, contact package owner about this issue");
-									this.printStream.print  (RESET);
+									noSuch("package", packageName);
 								}
-							}
-
-							case "remove" -> {
-								if (!this.rootFolder.getFolder("packages").removeFolder(cmds[2]))
-								{
-									this.printStream.print  (ERR);
-									this.printStream.println("Package not installed, nothing removed");
-									this.printStream.print  (RESET);
-								}
+								catch (ParseException ignored) {}
 							}
 
 							case "list" -> {
