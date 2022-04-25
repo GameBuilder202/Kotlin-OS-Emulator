@@ -244,7 +244,7 @@ public class Shell
 				case "help" -> {
 					if (cmds.length == 1)
 					{
-						this.printStream.println("Java OS v0.2.5");
+						this.printStream.println("Java OS v0.3.1");
 						this.printStream.println("Commands:");
 						this.printStream.print(
 								"""
@@ -506,7 +506,7 @@ public class Shell
 
 				case "info" -> this.printStream.print(
 									"""
-									JavaOS version 0.2.5
+									JavaOS version 0.3.1
 									Compiled with Java version 16
 									
 									Package manager: jpkg
