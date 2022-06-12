@@ -1,7 +1,5 @@
 package os.core.filesystem;
 
-import java.util.ArrayList;
-
 public class File
 {
     private String name;

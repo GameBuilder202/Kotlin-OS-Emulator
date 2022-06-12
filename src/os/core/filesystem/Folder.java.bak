@@ -1,7 +1,5 @@
 package os.core.filesystem;
 
-import os.core.shell.Shell;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 
@@ -40,9 +38,6 @@ public class Folder
 
     public File getFile(String name)
     {
-		String[] nameSplit = name.split("\\.");
-		if (nameSplit.length < 2) nameSplit = new String[]{nameSplit[0], ""};
-
         for (File file: this.files)
             if (file.getFullName().equals(name))
                 return file;
@@ -126,9 +121,7 @@ public class Folder
 
     public void printTree(int tabCount, PrintStream printStream)
     {
-        printStream.print("\033[32m");
         printStream.println("  ".repeat(tabCount) + this.name + '/');
-        printStream.print(Shell.RESET);
 
         for (Folder folder: this.folders)
             folder.printTree(tabCount + 1, printStream);
@@ -138,10 +131,8 @@ public class Folder
 
     public void printNames(PrintStream printStream)
     {
-        printStream.print("\033[32m");
         for (Folder folder: this.folders)
             printStream.println(folder.getName() + '/');
-        printStream.print(Shell.RESET);
 
         for (File file: this.files)
             printStream.println(file.getFullName());

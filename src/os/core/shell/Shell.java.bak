@@ -1,9 +1,13 @@
+This file exists as a backup of JavaOS v0.3.1 as its last java version
+This will not be updated to match the future kotlin versions
+
 package os.core.shell;
 
 import org.kohsuke.github.GHContent;
 import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
+
 import os.core.filesystem.File;
 import os.core.filesystem.Folder;
 
@@ -66,9 +70,6 @@ public class Shell
 			.replace(" " , "");
 
 	private static final HashMap<String, String> helpMap;
-
-	public static final String ERR = "\033[31m";
-	public static final String RESET = "\033[0m";
 
 	static
 	{
@@ -217,7 +218,6 @@ public class Shell
 		this.run();
 	}
 
-	@SuppressWarnings("unchecked")
 	private void run()
 	{
 		boolean shouldReboot = false;
@@ -228,6 +228,8 @@ public class Shell
 			String input = this.promptUserInput();
 
 			String[] cmds = input.split(" ");
+			String[] args = new String[cmds.length - 1];
+			System.arraycopy(cmds, 1, args, 0, cmds.length - 1);
 
 			String cmd;
 			try
@@ -241,421 +243,61 @@ public class Shell
 
 			switch (cmd)
 			{
-				case "help" -> {
-					if (cmds.length == 1)
-					{
-						this.printStream.println("Java OS v0.3.1");
-						this.printStream.println("Commands:");
-						this.printStream.print(
-								"""
-								help - Shows this
-								help <command> - Shows detailed help for a particular command
-								shutdown - Shutdown the OS
-								reboot - Reboot the OS
-								mkdir - Make a new folder
-								mk - Make a new file
-								rmdir - Remove the folder with the given name
-								rm - Remove the file with the given name
-								cd - Change directory into specified folder
-								ls - List all subfolders and files
-								vim - Open a command line text editor
-								info - Prints info about the OS
-								jpkg - Package manager
-								pwd - Prints the working directory
-								""");
-					}
-					else if (cmds.length == 2)
-					{
-						String command = cmds[1];
-						if (!helpMap.containsKey(command))
-						{
-							this.noSuch("command", command);
-							break;
-						}
-
-						this.printStream.println("Showing help for command " + command);
-						this.printStream.println();
-						this.printStream.print(helpMap.get(command));
-					}
-					else
-					{
-						this.printStream.print  (ERR);
-						this.printStream.println("Wrong usage of help command");
-						this.printStream.print  (RESET);
-					}
-				}
+				case "help" -> help(args);
 
 				case "shutdown" -> {
 					this.printStream.println("Shutting down...");
-
 					this.printStream.println("Cleaning up resources...");
 					System.gc();
-
 					break start;
 				}
 
 				case "reboot" -> {
 					this.printStream.println("Rebooting...");
-
 					shouldReboot = true;
 					break start;
 				}
 
-				case "mkdir" -> {
-					for (int i = 1; i < cmds.length; ++i)
-					{
-						Folder added = new Folder(cmds[i], this.currentFolder);
+				case "mkdir" -> mkdir(args);
 
-						if (!this.currentFolder.addFolder(added))
-						{
-							this.printStream.print  (ERR);
-							this.printStream.println("Folder already exists");
-							this.printStream.print  (RESET);
+				case "rmdir" -> rmdir(args);
 
-							continue;
-						}
+				case "mk" -> mk(args);
 
-						this.addFolderToJSON(added, this.currentFolder);
-					}
+				case "rm" -> rm(args);
 
-					this.updateJSONFile(this.rootObject.toJSONString());
-				}
+				case "cd" -> cd(args);
 
-				case "rmdir" -> {
-					for (int i = 1; i < cmds.length; ++i)
-					{
-						if (!this.currentFolder.removeFolder(cmds[i]))
-						{
-							this.noSuch("folder", cmds[i]);
-							continue;
-						}
-
-						this.removeFolderFromJSON(cmds[i]);
-					}
-
-					this.updateJSONFile(this.rootObject.toJSONString());
-				}
-
-				case "mk" -> {
-					for (int i = 1; i < cmds.length; ++i)
-					{
-						File added = new File(cmds[i], this.currentFolder);
-
-						if (!this.currentFolder.addFile(added))
-						{
-							this.printStream.print  (ERR);
-							this.printStream.println("File already exists");
-							this.printStream.print  (RESET);
-
-							continue;
-						}
-
-						this.addFileToJSON(added, this.currentFolder);
-					}
-
-					this.updateJSONFile(this.rootObject.toJSONString());
-				}
-
-				case "rm" -> {
-					for (int i = 1; i < cmds.length; ++i)
-					{
-						if (!this.currentFolder.removeFile(cmds[i]))
-						{
-							this.noSuch("file", cmds[i]);
-							continue;
-						}
-
-						this.removeFileFromJSON(cmds[i]);
-					}
-
-					this.updateJSONFile(this.rootObject.toJSONString());
-				}
-
-				case "cd" -> {
-					Folder cdFolder;
-
-					try
-					{
-						String[] paths = cmds[1].split("/");
-						cdFolder = this.currentFolder;
-
-						for (int i = 0; i < paths.length; ++i)
-						{
-							String path = paths[i];
-
-							if (i == 0 && path.equals("~"))
-							{
-								cdFolder = this.rootFolder.getFolder("Home");
-								continue;
-							}
-
-							if (path.equals(".."))
-							{
-								if (cdFolder.equals(this.rootFolder))
-								{
-									this.printStream.print  (ERR);
-									this.printStream.println("Already at topmost directory");
-									this.printStream.print  (RESET);
-									continue;
-								}
-
-								cdFolder = cdFolder.getParentFolder();
-								continue;
-							}
-
-							cdFolder = cdFolder.getFolder(path);
-						}
-
-					}
-					catch (ArrayIndexOutOfBoundsException e)
-					{
-						this.printStream.print  (ERR);
-						this.printStream.println("No folder name provided");
-						this.printStream.print  (RESET);
-						break;
-					}
-					catch (NullPointerException e)
-					{
-						noSuch("folder", cmds[1]);
-						break;
-					}
-
-					if (cdFolder == null)
-					{
-						noSuch("folder", cmds[1]);
-						break;
-					}
-
-					this.currentFolder = cdFolder;
-					this.updateCurrentPath();
-				}
-
-				case "ls" -> {
-					if (cmds.length > 1)
-					{
-						String flag = cmds[1];
-
-						if (flag.equals("-tree"))
-							this.currentFolder.printTree(this.printStream);
-
-						break;
-					}
-
-					this.currentFolder.printNames(this.printStream);
-				}
+				case "ls" -> ls(args);
 
 				case "clear" -> System.out.print("\033[H\033[J");
 
-				case "vim" -> {
-					if (cmds.length < 2)
+				case "vim" -> vim(args);
+
+				case "info" ->
+				{
+					if (args.length != 0)
 					{
-						this.printStream.print  (ERR);
-						this.printStream.println("No file name provided");
-						this.printStream.print  (RESET);
-						continue;
+						this.printStream.println("info does not take any arguments");
+						break;
 					}
-
-				 	final String filePath = cmds[1];
-					final String[] filePathSplit = filePath.split("/");
-					final String[] filePathSplit2 = new String[filePathSplit.length - 1];
-					final String fileName = filePathSplit[filePathSplit.length - 1];
-					System.arraycopy(filePathSplit, 0, filePathSplit2, 0, filePathSplit.length - 1);
-
-					Folder fileFolder = this.currentFolder;
-					for (String folder: filePathSplit2)
-					{
-						if (folder.equals(".."))
-						{
-							fileFolder = fileFolder.getParentFolder();
-							continue;
-						}
-
-						if (fileFolder.getFolder(folder) != null)
-						{
-							fileFolder = fileFolder.getFolder(folder);
-							continue;
-						}
-
-						StringBuilder errName = new StringBuilder();
-						for (String _folder: filePathSplit2)
-							errName.append(_folder).append('/');
-						errName.deleteCharAt(errName.length() - 1);
-
-						noSuch("folder", errName.toString());
-						continue start;
-					}
-
-					File file;
-
-					if (fileFolder.getFile(fileName) != null)
-						file = this.currentFolder.getFile(fileName);
-					else
-					{
-						file = new File(fileName, fileFolder);
-						fileFolder.addFile(file);
-						this.addFileToJSON(file, fileFolder);
-					}
-
-					// Launch vim on file
-					this.vim(file);
-
-					this.updateFileToJSON(file);
-
-					this.updateJSONFile(this.rootObject.toJSONString());
+					info();
 				}
 
-				case "info" -> this.printStream.print(
-									"""
-									JavaOS version 0.3.1
-									Compiled with Java version 16
-									
-									Package manager: jpkg
-									"""
-								);
+				case "jpkg" -> jpkg(args);
 
-				case "jpkg" -> {
-					try
+				case "pwd" ->
+				{
+					if (args.length != 0)
 					{
-						final GHRepository repo = GitHub.connectAnonymously().getRepository("GameBuilder202/Java-OS-Packages");
-
-						if (!(cmds.length > 1))
-						{
-							this.printStream.print  (ERR);
-							this.printStream.println("No operation provided");
-							this.printStream.print  (RESET);
-							break;
-						}
-
-						switch (cmds[1])
-						{
-							case "install" -> {
-								if (!(cmds.length > 2))
-								{
-									this.printStream.print  (ERR);
-									this.printStream.println("No package name provided");
-									this.printStream.print  (RESET);
-									break;
-								}
-
-								final String[] packageInput = cmds[2].split("@");
-								final String packageName = packageInput[0];
-								final boolean versionGiven = packageInput.length == 2;
-								final Pattern versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
-
-								if (this.rootFolder.getFolder("packages").getFolder(packageName) != null)
-								{
-									this.printStream.print  (ERR);
-									this.printStream.println("Package already installed, aborting installation");
-									this.printStream.print  (RESET);
-									break;
-								}
-
-								this.printStream.println("Getting package...");
-
-								try
-								{
-									final JSONParser parser = new JSONParser();
-
-									final List<GHContent> content = repo.getDirectoryContent(packageName + '/');
-									GHContent versionFile = null;
-									for (GHContent file: content)
-										if (file.getName().equals("versions.json"))
-											versionFile = file;
-
-									if (versionFile == null)
-									{
-										this.printStream.print  (ERR);
-										this.printStream.println("No versions.json file found in package");
-										this.printStream.print  (RESET);
-										break;
-									}
-
-									this.printStream.println("Found package, parsing data...");
-									final JSONObject json = (JSONObject) parser.parse(new String(versionFile.read().readAllBytes()));
-									String version = versionGiven ? packageInput[1] : (String) json.get("latest");
-
-									if (!versionMatcher.matcher(version).matches())
-									{
-										this.printStream.print  (ERR);
-										this.printStream.println("Invalid version as input, contact package owner if you did not provide version");
-										this.printStream.print  (RESET);
-										break;
-									}
-
-									GHContent file = null;
-									for (GHContent fileToCheck: content)
-										if (fileToCheck.getName().equals(version + ".json"))
-											file = fileToCheck;
-
-									if (file == null)
-									{
-										this.printStream.print  (ERR);
-										this.printStream.println("Version " + version + " of package " + packageName + " not found");
-										this.printStream.print  (RESET);
-										break;
-									}
-
-									this.printStream.println("Found package, installing...");
-									final JSONArray packageFiles = (JSONArray) parser.parse(new String(file.read().readAllBytes()));
-									final Folder packageFolder = new Folder(packageName, this.rootFolder.getFolder("packages"));
-									this.rootFolder.getFolder("packages").addFolder(packageFolder);  this.addFolderToJSON(packageFolder, this.rootFolder.getFolder("packages"));
-
-									{
-										final File VersionFile = new File("VERSION", packageFolder);
-										VersionFile.setContents(version);
-										packageFolder.addFile(VersionFile);  this.addFileToJSON(VersionFile, packageFolder);
-									}
-
-									for (Object fileToInstall: packageFiles)
-									{
-										final JSONObject fileToInstallJSON = (JSONObject) fileToInstall;
-										final String fileName = (String) fileToInstallJSON.get("name") + '.' + fileToInstallJSON.get("type");
-										final String fileContents = (String) fileToInstallJSON.get("contents");
-										final File installFile = new File(fileName, packageFolder);
-										installFile.setContents(fileContents);
-										packageFolder.addFile(installFile);  this.addFileToJSON(installFile, packageFolder);
-									}
-									this.updateJSONFile(this.rootObject.toJSONString());
-
-									this.printStream.println("Package installed successfully");
-								}
-								catch (GHFileNotFoundException e)
-								{
-									noSuch("package", packageName);
-								}
-								catch (ParseException ignored) {}
-							}
-
-							case "list" -> {
-								Folder packageFolder = this.rootFolder.getFolder("packages");
-
-								try
-								{
-									// Use reflection to get and list all subfolders of packages class
-									Field f = packageFolder.getClass().getDeclaredField("folders");
-									f.setAccessible(true);
-									ArrayList<Folder> folders = (ArrayList<Folder>) f.get(packageFolder);
-
-									for (Folder folder: folders)
-										this.printStream.println(folder.getName());
-								}
-								catch (NoSuchFieldException | IllegalAccessException ignored) {}
-							}
-
-							default -> {
-								if (cmds[1].isEmpty() || cmds[1].startsWith("\t") || cmds[1].startsWith("\033"))
-									continue;
-
-								noSuch("command", cmds[1]);
-							}
-						}
+						this.printStream.println("pwd does not take any arguments");
+						break;
 					}
-					catch (IOException ignored) {}
+					pwd();
 				}
 
-				case "pwd" -> this.printStream.println(this.currentFullPath);
-
-				default -> {
+				default ->
+				{
 					if (cmd.isEmpty() || cmd.startsWith("\t") || cmd.startsWith("\033"))
 						continue;
 
@@ -669,8 +311,385 @@ public class Shell
 			this.boot();
 	}
 
-	private void vim(File file)
+	public void help(String[] args)
 	{
+		if (args.length == 0)
+		{
+			this.printStream.println("Java OS v0.3.1");
+			this.printStream.println("Commands:");
+			this.printStream.print(
+					"""
+					help - Shows this
+					help <command> - Shows detailed help for a particular command
+					shutdown - Shutdown the OS
+					reboot - Reboot the OS
+					mkdir - Make a new folder
+					mk - Make a new file
+					rmdir - Remove the folder with the given name
+					rm - Remove the file with the given name
+					cd - Change directory into specified folder
+					ls - List all subfolders and files
+					vim - Open a command line text editor
+					info - Prints info about the OS
+					jpkg - Package manager
+					pwd - Prints the working directory
+					""");
+		}
+		else if (args.length == 1)
+		{
+			String command = args[0];
+			if (!helpMap.containsKey(command))
+			{
+				this.noSuch("command", command);
+				return;
+			}
+
+			this.printStream.println("Showing help for command " + command);
+			this.printStream.println();
+			this.printStream.print(helpMap.get(command));
+		}
+		else
+			this.printStream.println("Wrong usage of help command");
+	}
+
+	public void mkdir(String[] args)
+	{
+		for (String arg: args)
+		{
+			Folder added = new Folder(arg, this.currentFolder);
+
+			if (!this.currentFolder.addFolder(added))
+			{
+				this.printStream.println("Folder " + added.getName() + " already exists");
+				continue;
+			}
+
+			this.addFolderToJSON(added, this.currentFolder);
+		}
+
+		this.updateJSONFile(this.rootObject.toJSONString());
+	}
+
+	public void rmdir(String[] args)
+	{
+		for (String arg: args)
+		{
+			if (!this.currentFolder.removeFolder(arg))
+			{
+				this.noSuch("folder", arg);
+				continue;
+			}
+
+			this.removeFolderFromJSON(arg);
+		}
+
+		this.updateJSONFile(this.rootObject.toJSONString());
+	}
+
+	public void mk(String[] args)
+	{
+		for (String arg: args)
+		{
+			File added = new File(arg, this.currentFolder);
+
+			if (!this.currentFolder.addFile(added))
+			{
+				this.printStream.println("File already exists");
+				continue;
+			}
+
+			this.addFileToJSON(added, this.currentFolder);
+		}
+
+		this.updateJSONFile(this.rootObject.toJSONString());
+	}
+
+	public void rm(String[] args)
+	{
+		for (String arg: args)
+		{
+			if (!this.currentFolder.removeFile(arg))
+			{
+				this.noSuch("file", arg);
+				continue;
+			}
+
+			this.removeFileFromJSON(arg);
+		}
+
+		this.updateJSONFile(this.rootObject.toJSONString());
+	}
+
+	public void cd(String[] args)
+	{
+		Folder cdFolder;
+
+		try
+		{
+			String[] paths = args[0].split("/");
+			cdFolder = this.currentFolder;
+
+			for (int i = 0; i < paths.length; ++i)
+			{
+				String path = paths[i];
+
+				if (i == 0 && path.equals("~"))
+				{
+					cdFolder = this.rootFolder.getFolder("Home");
+					continue;
+				}
+
+				if (path.equals(".."))
+				{
+					if (cdFolder.equals(this.rootFolder))
+					{
+
+						this.printStream.println("Already at topmost directory");
+
+						continue;
+					}
+
+					cdFolder = cdFolder.getParentFolder();
+					continue;
+				}
+
+				cdFolder = cdFolder.getFolder(path);
+			}
+
+		}
+		catch (ArrayIndexOutOfBoundsException e)
+		{
+			this.printStream.println("No folder name provided");
+			return;
+		}
+		catch (NullPointerException e)
+		{
+			noSuch("folder", args[0]);
+			return;
+		}
+
+		if (cdFolder == null)
+		{
+			noSuch("folder", args[0]);
+			return;
+		}
+
+		this.currentFolder = cdFolder;
+		this.updateCurrentPath();
+	}
+
+	public void ls(String[] args)
+	{
+		if (args.length > 1)
+		{
+			String flag = args[0];
+
+			if (flag.equals("-tree"))
+				this.currentFolder.printTree(this.printStream);
+
+			return;
+		}
+
+		this.currentFolder.printNames(this.printStream);
+	}
+
+	public void info()
+	{
+		this.printStream.print(
+			"""
+			JavaOS version 0.3.1
+			Compiled with Java version 16
+			
+			Package manager: jpkg
+			"""
+		);
+	}
+
+	@SuppressWarnings("unchecked")
+	public void jpkg(String[] args)
+	{
+		try
+		{
+			final GHRepository repo = GitHub.connectAnonymously().getRepository("GameBuilder202/Java-OS-Packages");
+
+			if (args.length == 0)
+			{
+				this.printStream.println("No operation provided");
+				return;
+			}
+
+			switch (args[0])
+			{
+				case "install" -> {
+					if (args.length < 2)
+					{
+						this.printStream.println("No package name provided");
+						break;
+					}
+
+					final String[] packageInput = args[1].split("@");
+					final String packageName = packageInput[0];
+					final boolean versionGiven = packageInput.length == 2;
+					final Pattern versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
+
+					if (this.rootFolder.getFolder("packages").getFolder(packageName) != null)
+					{
+						this.printStream.println("Package already installed, aborting installation");
+						break;
+					}
+
+					this.printStream.println("Getting package...");
+
+					try
+					{
+						final JSONParser parser = new JSONParser();
+
+						final List<GHContent> content = repo.getDirectoryContent(packageName + '/');
+						GHContent versionFile = null;
+						for (GHContent file: content)
+							if (file.getName().equals("versions.json"))
+								versionFile = file;
+
+						if (versionFile == null)
+						{
+							this.printStream.println("No versions.json file found in package");
+							break;
+						}
+
+						this.printStream.println("Found package, parsing data...");
+						final JSONObject json = (JSONObject) parser.parse(new String(versionFile.read().readAllBytes()));
+						String version = versionGiven ? packageInput[1] : (String) json.get("latest");
+
+						if (!versionMatcher.matcher(version).matches())
+						{
+							this.printStream.println("Invalid version as input, contact package owner if you did not provide version");
+							break;
+						}
+
+						GHContent file = null;
+						for (GHContent fileToCheck: content)
+							if (fileToCheck.getName().equals(version + ".json"))
+								file = fileToCheck;
+
+						if (file == null)
+						{
+							this.printStream.println("Version " + version + " of package " + packageName + " not found");
+							break;
+						}
+
+						this.printStream.println("Found package, installing...");
+						final JSONArray packageFiles = (JSONArray) parser.parse(new String(file.read().readAllBytes()));
+						final Folder packageFolder = new Folder(packageName, this.rootFolder.getFolder("packages"));
+						this.rootFolder.getFolder("packages").addFolder(packageFolder);  this.addFolderToJSON(packageFolder, this.rootFolder.getFolder("packages"));
+
+						{
+							final File VersionFile = new File("VERSION", packageFolder);
+							VersionFile.setContents(version);
+							packageFolder.addFile(VersionFile);  this.addFileToJSON(VersionFile, packageFolder);
+						}
+
+						for (Object fileToInstall: packageFiles)
+						{
+							final JSONObject fileToInstallJSON = (JSONObject) fileToInstall;
+							final String fileName = (String) fileToInstallJSON.get("name") + '.' + fileToInstallJSON.get("type");
+							final String fileContents = (String) fileToInstallJSON.get("contents");
+							final File installFile = new File(fileName, packageFolder);
+							installFile.setContents(fileContents);
+							packageFolder.addFile(installFile);  this.addFileToJSON(installFile, packageFolder);
+						}
+						this.updateJSONFile(this.rootObject.toJSONString());
+
+						this.printStream.println("Package installed successfully");
+					}
+					catch (GHFileNotFoundException e)
+					{
+						noSuch("package", packageName);
+					}
+					catch (ParseException ignored) {}
+				}
+
+				case "list" -> {
+					Folder packageFolder = this.rootFolder.getFolder("packages");
+
+					try
+					{
+						// Use reflection to get and list all subfolders of packages class
+						Field f = packageFolder.getClass().getDeclaredField("folders");
+						f.setAccessible(true);
+						ArrayList<Folder> folders = (ArrayList<Folder>) f.get(packageFolder);
+
+						for (Folder folder: folders)
+							this.printStream.println(folder.getName());
+					}
+					catch (NoSuchFieldException | IllegalAccessException ignored) {}
+				}
+
+				default -> {
+					if (args[0].isEmpty() || args[0].startsWith("\t") || args[0].startsWith("\033"))
+						return;
+
+					noSuch("command", args[0]);
+				}
+			}
+		}
+		catch (IOException ignored) {}
+	}
+
+	public void pwd()
+	{
+		this.printStream.println(this.currentFullPath);
+	}
+
+
+	private void vim(String[] args)
+	{
+		if (args.length < 1)
+		{
+			this.printStream.println("No file name provided");
+			return;
+		}
+
+		final String filePath = args[1];
+		final String[] filePathSplit = filePath.split("/");
+		final String[] filePathSplit2 = new String[filePathSplit.length - 1];
+		final String fileName = filePathSplit[filePathSplit.length - 1];
+		System.arraycopy(filePathSplit, 0, filePathSplit2, 0, filePathSplit.length - 1);
+
+		Folder fileFolder = this.currentFolder;
+		for (String folder: filePathSplit2)
+		{
+			if (folder.equals(".."))
+			{
+				fileFolder = fileFolder.getParentFolder();
+				continue;
+			}
+
+			if (fileFolder.getFolder(folder) != null)
+			{
+				fileFolder = fileFolder.getFolder(folder);
+				continue;
+			}
+
+			StringBuilder errName = new StringBuilder();
+			for (String _folder: filePathSplit2)
+				errName.append(_folder).append('/');
+			errName.deleteCharAt(errName.length() - 1);
+
+			noSuch("folder", errName.toString());
+			return;
+		}
+
+		File file;
+
+		if (fileFolder.getFile(fileName) != null)
+			file = this.currentFolder.getFile(fileName);
+		else
+		{
+			file = new File(fileName, fileFolder);
+			fileFolder.addFile(file);
+			this.addFileToJSON(file, fileFolder);
+		}
+
 		final ArrayList<String> lines = new ArrayList<>(Arrays.asList(file.getContents().split("\\n")));
 
 		final Scanner vimScanner = new Scanner(this.in);
@@ -781,8 +800,8 @@ public class Shell
 				flags |= 0b10;
 		}
 
-		// Clear screen
-		System.out.print("\033[H\033[J");
+		this.updateFileToJSON(file);
+		this.updateJSONFile(this.rootObject.toJSONString());
 	}
 
 	private void initRootObj()
@@ -795,9 +814,7 @@ public class Shell
 		}
 		catch (ParseException e)
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("Unable to parse os info data, erasing to default installation...");
-			this.printStream.print  (RESET);
 
 			try
 			{
@@ -809,9 +826,7 @@ public class Shell
 		}
 		catch (FileNotFoundException | NullPointerException e)
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("No file found for current os info data, creating default installation...");
-			this.printStream.print  (RESET);
 
 			try (Writer writer = new FileWriter("osinfo.json"))
 			{
@@ -836,9 +851,7 @@ public class Shell
 
 	private void noSuch(String errName, String thing)
 	{
-		this.printStream.print  (ERR);
 		this.printStream.println("No such " + errName + ": " + thing);
-		this.printStream.print  (RESET);
 	}
 
 	private String promptUserInput()
@@ -916,9 +929,7 @@ public class Shell
 	{
 		if (addedTo.equals(this.rootFolder))
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("Cannot modify root folder");
-			this.printStream.print(  RESET);
 			return;
 		}
 
@@ -944,9 +955,7 @@ public class Shell
 	{
 		if (addedTo.equals(this.rootFolder))
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("Cannot modify root folder");
-			this.printStream.print  (RESET);
 			return;
 		}
 
@@ -1022,9 +1031,7 @@ public class Shell
 	{
 		if (this.currentFolder.equals(this.rootFolder))
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("Cannot modify root folder");
-			this.printStream.print  (RESET);
 			return;
 		}
 
@@ -1062,9 +1069,7 @@ public class Shell
 		// This should ideally never run if user has not tampered with the JSON, but put as a safety check anyways
 		if (this.currentFolder.equals(this.rootFolder))
 		{
-			this.printStream.print  (ERR);
 			this.printStream.println("Cannot modify root folder");
-			this.printStream.print  (RESET);
 			return;
 		}
 
