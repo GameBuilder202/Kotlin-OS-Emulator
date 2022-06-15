@@ -1,3 +1,5 @@
+@file:Suppress("MemberVisibilityCanBePrivate")
+
 package os.core.shell
 
 import org.json.simple.JSONArray
@@ -236,9 +238,8 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		}
 	}
 
-	fun boot()
+	fun bootNoRun()
 	{
-		print("\u001b[H\u001b[J")
 		printStream.println("JavaOS booting")
 		initRootObj()
 		val installationHelper = object
@@ -277,6 +278,12 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		currentFolder = rootFolder.getFolder("Home")
 		updateCurrentPath()
 		updateJSONFile(rootObject.toJSONString())
+	}
+
+	fun boot()
+	{
+		print("\u001b[H\u001b[2J\u001b[3J")
+		bootNoRun()
 		this.run()
 	}
 
@@ -292,7 +299,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			if (cmds.isEmpty()) continue
 
 			val args = cmds.copyOfRange(1, cmds.size)
-			var cmd: String
+			val cmd: String
 			try
 			{
 				cmd = cmds[0]
@@ -301,6 +308,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			{
 				continue
 			}
+
 			when (cmd)
 			{
 				"help"     -> help(args)
@@ -858,6 +866,8 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	private fun promptUserInput(): String
 	{
 		printStream.print("[$username@KtOS $currentPath]$ ")
+
+		while (!scanner.hasNextLine()) Thread.sleep(100)
 		return scanner.nextLine()
 	}
 

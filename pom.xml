@@ -1,7 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>Java-OS</groupId>
+    <groupId>Kotlin-OS</groupId>
     <artifactId>os.core</artifactId>
     <version>0.4.0</version>
     <packaging>jar</packaging>
