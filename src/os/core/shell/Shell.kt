@@ -22,7 +22,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	private val scanner: Scanner = Scanner(`in`)
 	private var currentPath = "~"
 	private var currentFullPath: String = ""
-	private var currentFolder: Folder? = null
+	private lateinit var currentFolder: Folder
 	private val rootFolder: Folder = Folder("root", null)
 	private var username: String = ""
 	private var rootObject: JSONObject = JSONObject()
@@ -250,7 +250,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				`object`!!["username"] = username
 				printStream.println(
 					"Set username to $username, modify JSON file if you want a different one " +
-							"or delete it for a fresh installation"
+					"or delete it for a fresh installation"
 				)
 			}
 
@@ -275,7 +275,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			val folder = folders as JSONObject
 			refreshRootFolderFromJSON(folder, rootFolder)
 		}
-		currentFolder = rootFolder.getFolder("Home")
+		currentFolder = rootFolder.getFolder("Home")!!
 		updateCurrentPath()
 		updateJSONFile(rootObject.toJSONString())
 	}
@@ -369,7 +369,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		{
 			printStream.println("Java OS v0.4.0")
 			printStream.println("Commands:")
-			printStream.print(
+			printStream.println(
 				"""
 				help - Shows this
 				help <command> - Shows detailed help for a particular command
@@ -398,7 +398,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			}
 			printStream.println("Showing help for command $command")
 			printStream.println()
-			printStream.print(helpMap[command])
+			printStream.println(helpMap[command])
 		}
 		else printStream.println("Wrong usage of help command")
 	}
@@ -408,12 +408,12 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		for (arg: String in args)
 		{
 			val added = Folder(arg, currentFolder)
-			if (!currentFolder!!.addFolder(added))
+			if (!currentFolder.addFolder(added))
 			{
 				printStream.println("Folder " + added.name + " already exists")
 				continue
 			}
-			addFolderToJSON(added, currentFolder!!)
+			addFolderToJSON(added, currentFolder)
 		}
 		updateJSONFile(rootObject.toJSONString())
 	}
@@ -422,7 +422,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	{
 		for (arg: String in args)
 		{
-			if (!currentFolder!!.removeFolder(arg))
+			if (!currentFolder.removeFolder(arg))
 			{
 				noSuch("folder", arg)
 				continue
@@ -436,22 +436,22 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	{
 		for (arg: String in args)
 		{
-			val added = File(arg, currentFolder!!)
-			if (!currentFolder!!.addFile(added))
+			val added = File(arg, currentFolder)
+			if (!currentFolder.addFile(added))
 			{
 				printStream.println("File already exists")
 				continue
 			}
-			addFileToJSON(added, currentFolder!!)
+			addFileToJSON(added, currentFolder)
 		}
 		updateJSONFile(rootObject.toJSONString())
 	}
 
 	fun rm(args: Array<String>)
 	{
-		for (arg: String? in args)
+		for (arg: String in args)
 		{
-			if (!currentFolder!!.removeFile(arg!!))
+			if (!currentFolder.removeFile(arg))
 			{
 				noSuch("file", arg)
 				continue
@@ -492,7 +492,8 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		}
 		catch (e: ArrayIndexOutOfBoundsException)
 		{
-			printStream.println("No folder name provided")
+			currentFolder = rootFolder.getFolder("Home")!!
+
 			return
 		}
 		catch (e: NullPointerException)
@@ -514,11 +515,11 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		if (args.size > 1)
 		{
 			val flag = args[0]
-			if (flag == "-tree") currentFolder!!.printTree(printStream)
+			if (flag == "-tree") currentFolder.printTree(printStream)
 			return
 		}
 		else
-			currentFolder!!.printNames(printStream)
+			currentFolder.printNames(printStream)
 	}
 
 	fun info()
@@ -670,12 +671,12 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		{
 			if ((folder == ".."))
 			{
-				fileFolder = fileFolder!!.parentFolder
+				fileFolder = fileFolder.parentFolder!!
 				continue
 			}
-			if (fileFolder!!.getFolder(folder) != null)
+			if (fileFolder.getFolder(folder) != null)
 			{
-				fileFolder = fileFolder.getFolder(folder)
+				fileFolder = fileFolder.getFolder(folder)!!
 				continue
 			}
 			val errName = StringBuilder()
@@ -685,7 +686,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			return
 		}
 		val file: File
-		if (fileFolder!!.getFile(fileName) != null) file = currentFolder!!.getFile(fileName)!!
+		if (fileFolder.getFile(fileName) != null) file = currentFolder.getFile(fileName)!!
 		else
 		{
 			file = File(fileName, fileFolder)
@@ -836,26 +837,20 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			{
 				FileWriter("osinfo.json").use { writer -> writer.write(prettyPrintJSON(default)) }
 			}
-			catch (ignored: IOException)
-			{
-			}
+			catch (ignored: IOException) {}
 			try
 			{
 				rootObject = JSONParser().parse(default) as JSONObject
 			}
-			catch (ignored: ParseException)
-			{
-			}
+			catch (ignored: ParseException) {}
 		}
-		catch (ignored: IOException)
-		{
-		}
+		catch (ignored: IOException) {}
 	}
 
 	private fun updateCurrentPath()
 	{
-		currentPath = currentFolder!!.name
-		currentFullPath = currentFolder!!.fullPath
+		currentPath = currentFolder.name
+		currentFullPath = currentFolder.fullPath
 	}
 
 	private fun noSuch(errName: String, thing: String)

@@ -2,7 +2,7 @@ package os.core.filesystem
 
 import java.io.PrintStream
 
-class Folder @JvmOverloads constructor(var name: String, val parentFolder: Folder? = null)
+class Folder constructor(var name: String, val parentFolder: Folder? = null)
 {
 	private val files: ArrayList<File> = ArrayList()
 	private val folders: ArrayList<Folder> = ArrayList()
@@ -88,7 +88,7 @@ class Folder @JvmOverloads constructor(var name: String, val parentFolder: Folde
 
 	fun printNames(printStream: PrintStream)
 	{
-		for (folder in folders) printStream.println("$name/")
-		for (file in files) printStream.println(file.fullName)
+		for (folder in folders) printStream.println("${folder.name}/")
+		for (file in files)     printStream.println(file.fullName)
 	}
 }
