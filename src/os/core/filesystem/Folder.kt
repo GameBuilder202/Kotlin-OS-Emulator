@@ -2,10 +2,10 @@ package os.core.filesystem
 
 import java.io.PrintStream
 
-class Folder constructor(var name: String, val parentFolder: Folder? = null)
+class Folder(var name: String, val parentFolder: Folder? = null)
 {
-	private val files: ArrayList<File> = ArrayList()
-	private val folders: ArrayList<Folder> = ArrayList()
+	val files: ArrayList<File> = ArrayList()
+	val folders: ArrayList<Folder> = ArrayList()
 
 	val fullPath: String
 		get()
@@ -50,6 +50,9 @@ class Folder constructor(var name: String, val parentFolder: Folder? = null)
 
 	fun getFolder(name: String): Folder?
 	{
+		if (name == ".")  return this
+		if (name == "..") return parentFolder
+
 		for (folder in folders) if (folder.name == name) return folder
 		return null
 	}

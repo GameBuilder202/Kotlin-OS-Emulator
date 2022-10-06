@@ -41,7 +41,7 @@ class File(name: String, parentFolder: Folder)
 
 	override fun toString(): String
 	{
-		return "$name.$type"
+		return fullName
 	}
 
 	companion object
@@ -51,11 +51,12 @@ class File(name: String, parentFolder: Folder)
 			val sub = name.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
 			if (sub.size == 1) return arrayOf(sub[0], "")
 			val out = arrayOf("", "")
-			for (i in sub.indices)
+			for (i in 0 until sub.size - 1)
 			{
 				out[0] += sub[i]
 			}
 			out[1] = sub[sub.size - 1]
+
 			return out
 		}
 	}

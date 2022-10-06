@@ -1,0 +1,31 @@
+Ideas for the format of binary FS:
+
+TABLE:
+	[HEADER] [Null terminated name] [DATA]
+
+[HEADER] - 0x00 - File
+		 - 0x01 - Folder
+
+File:
+	[DATA]:
+		16 bit word - Size of cluster
+		16 bit word - Address of cluster
+
+		(Both little endian)
+
+		More than 1 of these if file takes up more than 1 cluster
+		Entries terminated by 0x00 byte
+
+Folder:
+	[DATA]:
+		16 bit word - Number of entries under folder
+		...
+		0x0002 - End of folder entries
+		No address will (hopefully) be 0x0002, so this can safely mark the end of folder entries
+
+
+No, the filesystem is not 16-bit based, it just so happens that I wanted 16 bit stuff
+
+Actual file data will start after TABLE, so none of it disturbs the reading of the TABLE
+
+None of this is optimized for fragmentation etc. Just an idea I came up with because real FS is bloat

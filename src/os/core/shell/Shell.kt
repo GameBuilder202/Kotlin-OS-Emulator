@@ -21,7 +21,6 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 {
 	private val scanner: Scanner = Scanner(`in`)
 	private var currentPath = "~"
-	private var currentFullPath: String = ""
 	private lateinit var currentFolder: Folder
 	private val rootFolder: Folder = Folder("root", null)
 	private var username: String = ""
@@ -62,7 +61,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				.replace(" ", "")
 
 		private val helpMap: HashMap<String?, String> = HashMap()
-		private val repo: GHRepository = GitHub.connectAnonymously().getRepository("GameBuilder202/Java-OS-Packages")!!
+		private lateinit var repo: GHRepository
 
 		init
 		{
@@ -129,7 +128,10 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				:s       - Save file
 				:q       - Quit vim
 				""".trimIndent()
-			helpMap["info"] = "Shows information about the OS"
+			helpMap["info"] =
+				"""
+				Shows information about the OS
+				""".trimIndent()
 			helpMap["jpkg"] =
 				"""
 				JavaOS Package manager
@@ -143,6 +145,27 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				"""
 				Prints the current working directory
 				This is usually the current directory
+				""".trimIndent()
+			helpMap["cat"] =
+				"""
+				Prints the contents of the files given
+				""".trimIndent()
+			helpMap["size"] =
+				"""
+				Prints the sizes of the folder/file given
+				""".trimIndent()
+			helpMap["file"] =
+				"""
+				Prints the type of file the given file is
+				""".trimIndent()
+			helpMap["fedit"] =
+				"""
+				Edit a file from the terminal
+				Usage: fedit [-o|-a|-r#] filename contents
+				Flags:
+				-o: Override file with contents
+				-a: Append contents to end of file
+				-r#: Replace line # with contents
 				""".trimIndent()
 		}
 
@@ -242,6 +265,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	{
 		printStream.println("JavaOS booting")
 		initRootObj()
+		repo = GitHub.connectAnonymously().getRepository("GameBuilder202/Java-OS-Packages")!!
 		val installationHelper = object
 		{
 			fun installationProcess(printStream: PrintStream, scanner: Scanner, `object`: JSONObject?)
@@ -250,7 +274,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				`object`!!["username"] = username
 				printStream.println(
 					"Set username to $username, modify JSON file if you want a different one " +
-					"or delete it for a fresh installation"
+							"or delete it for a fresh installation"
 				)
 			}
 
@@ -294,22 +318,13 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		start@ while (true)
 		{
 			val input = promptUserInput()
-			val cmds = input.split(" ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+			val cmds = parseArguments(input)
 
 			if (cmds.isEmpty()) continue
 
 			val args = cmds.copyOfRange(1, cmds.size)
-			val cmd: String
-			try
-			{
-				cmd = cmds[0]
-			}
-			catch (e: ArrayIndexOutOfBoundsException)
-			{
-				continue
-			}
 
-			when (cmd)
+			when (val cmd = cmds[0])
 			{
 				"help"     -> help(args)
 				"shutdown" ->
@@ -352,6 +367,11 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 					}
 					pwd()
 				}
+				"cat"      -> cat(args)
+				"size"     -> size(args)
+				"file"     -> file(args)
+				"fedit"    -> fedit(args)
+
 				else       ->
 				{
 					if (cmd.startsWith("\t") || cmd.startsWith("\u001b")) continue
@@ -363,13 +383,49 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		if (shouldReboot) boot()
 	}
 
+	fun parseArguments(input: String): Array<String>
+	{
+		val cmds = arrayListOf<String>()
+		var index = 0
+
+		var i = 0
+		while (i < input.length)
+		{
+			val c = input[i]
+
+			if (index > cmds.size - 1)
+				cmds.add("")
+
+			if (c == ' ')
+			{
+				if (cmds[index].isNotEmpty())
+					index++
+			}
+			else if (c == '"')
+			{
+				i++
+				while (i < input.length && input[i] != '"')
+				{
+					cmds[index] = cmds[index] + input[i]
+					i++
+				}
+			}
+			else
+				cmds[index] = cmds[index] + c
+
+			i++
+		}
+
+		return cmds.toTypedArray()
+	}
+
 	fun help(args: Array<String>)
 	{
 		if (args.isEmpty())
 		{
-			printStream.println("Java OS v0.4.0")
+			printStream.println("Java OS v0.4.1")
 			printStream.println("Commands:")
-			printStream.println(
+			printStream.print(
 				"""
 				help - Shows this
 				help <command> - Shows detailed help for a particular command
@@ -385,6 +441,10 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				info - Prints info about the OS
 				jpkg - Package manager
 				pwd - Prints the working directory
+				cat - Print file contents
+				size - Print size of input file/directory
+				file - Print type of file input file is
+				fedit - Edit files
 				""".trimIndent()
 			)
 		}
@@ -405,7 +465,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	fun mkdir(args: Array<String>)
 	{
-		for (arg: String in args)
+		for (arg in args)
 		{
 			val added = Folder(arg, currentFolder)
 			if (!currentFolder.addFolder(added))
@@ -420,7 +480,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	fun rmdir(args: Array<String>)
 	{
-		for (arg: String in args)
+		for (arg in args)
 		{
 			if (!currentFolder.removeFolder(arg))
 			{
@@ -434,7 +494,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	fun mk(args: Array<String>)
 	{
-		for (arg: String in args)
+		for (arg in args)
 		{
 			val added = File(arg, currentFolder)
 			if (!currentFolder.addFile(added))
@@ -449,7 +509,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	fun rm(args: Array<String>)
 	{
-		for (arg: String in args)
+		for (arg in args)
 		{
 			if (!currentFolder.removeFile(arg))
 			{
@@ -484,8 +544,6 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 						printStream.println("Already at topmost directory")
 						continue
 					}
-					cdFolder = cdFolder!!.parentFolder
-					continue
 				}
 				cdFolder = cdFolder!!.getFolder(path)
 			}
@@ -493,6 +551,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		catch (e: ArrayIndexOutOfBoundsException)
 		{
 			currentFolder = rootFolder.getFolder("Home")!!
+			updateCurrentPath()
 
 			return
 		}
@@ -526,7 +585,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	{
 		printStream.print(
 			"""
-			JavaOS version 0.4.0
+			JavaOS version 0.4.1
 			Compiled with Kotlin version 1.7.0
 			
 			Package manager: jpkg
@@ -543,100 +602,137 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 				printStream.println("No operation provided")
 				return
 			}
+
 			when (args[0])
 			{
+				"help"    ->
+				{
+					printStream.println("Showing help for jpkg")
+					printStream.println(
+						"""
+						install name[@version] - Install a package (optional: specify package version]
+						remove  name           - Remove a package from the system
+						list                   - List currently installed packages
+						""".trimIndent()
+					)
+				}
+
 				"install" ->
 				{
 					if (args.size < 2)
 					{
-						printStream.println("No package name provided")
+						printStream.println("install expects 1 or more arguments")
 						return
 					}
-					val packageInput = args[1].split("@".toRegex()).dropLastWhile { it.isEmpty() }
-						.toTypedArray()
-					val packageName = packageInput[0]
-					val versionGiven = packageInput.size == 2
-					val versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$")
-					if (rootFolder.getFolder("packages")!!.getFolder(packageName) != null)
+
+					for (i in 1 until args.size)
 					{
-						printStream.println("Package already installed, aborting installation")
-						return
-					}
-					printStream.println("Getting package...")
-					try
-					{
-						val parser = JSONParser()
-						val content = repo.getDirectoryContent("$packageName/")
-						var versionFile: GHContent? = null
-						for (file: GHContent in content) if ((file.name == "versions.json")) versionFile = file
-						if (versionFile == null)
+						printStream.println("Installing package ${args[i]}")
+
+						val packageInput = args[i].split("@".toRegex()).dropLastWhile { it.isEmpty() }
+							.toTypedArray()
+						val packageName = packageInput[0]
+						val versionGiven = packageInput.size == 2
+						val versionMatcher = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$")
+						if (rootFolder.getFolder("packages")!!.getFolder(packageName) != null)
 						{
-							printStream.println("No versions.json file found in package")
+							printStream.println("Package already installed, aborting installation")
 							return
 						}
-						printStream.println("Found package, parsing data...")
-						val json = parser.parse(String(versionFile.read().readAllBytes())) as JSONObject
-						val version = if (versionGiven) packageInput[1] else (json["latest"] as String?)!!
-						if (!versionMatcher.matcher(version).matches())
+						printStream.println("Getting package...")
+						try
 						{
-							printStream.println("Invalid version as input, contact package owner if you did not provide version")
-							return
+							val parser = JSONParser()
+							val content = repo.getDirectoryContent("$packageName/")
+							var versionFile: GHContent? = null
+							for (file: GHContent in content) if ((file.name == "versions.json")) versionFile = file
+							if (versionFile == null)
+							{
+								printStream.println("No versions.json file found in package")
+								return
+							}
+							printStream.println("Found package, parsing data...")
+							val json = parser.parse(String(versionFile.read().readAllBytes())) as JSONObject
+							val version = if (versionGiven) packageInput[1] else (json["latest"] as String?)!!
+							if (!versionMatcher.matcher(version).matches())
+							{
+								printStream.println("Invalid version as input, contact package owner if you did not provide version")
+								return
+							}
+							var file: GHContent? = null
+							for (fileToCheck: GHContent in content) if ((fileToCheck.name == "$version.json")) file =
+								fileToCheck
+							if (file == null)
+							{
+								printStream.println("Version $version of package $packageName not found")
+								return
+							}
+							printStream.println("Found package, installing...")
+							val packageFiles = parser.parse(String(file.read().readAllBytes())) as JSONArray
+
+							val currFolderCopy = currentFolder
+							currentFolder = rootFolder.getFolder("packages")!!
+							mkdir(arrayOf(packageName))
+							val packageFolder = currentFolder.getFolder(packageName)!!
+
+							run {
+								@Suppress("SpellCheckingInspection")
+								val vversionFile = File("VERSION", packageFolder)
+								vversionFile.contents = version
+								packageFolder.addFile(vversionFile)
+								addFileToJSON(vversionFile, packageFolder)
+							}
+
+							for (fileToInstall: Any? in packageFiles)
+							{
+								val fileToInstallJSON = fileToInstall as JSONObject
+								val fileName = fileToInstallJSON["name"] as String + '.' + fileToInstallJSON["type"]
+								val fileContents = fileToInstallJSON["contents"] as String
+								val installFile = File(fileName, packageFolder)
+								installFile.contents = fileContents
+								packageFolder.addFile(installFile)
+								addFileToJSON(installFile, packageFolder)
+							}
+							updateJSONFile(rootObject.toJSONString())
+							currentFolder = currFolderCopy
+
+							printStream.println("Package installed successfully")
 						}
-						var file: GHContent? = null
-						for (fileToCheck: GHContent in content) if ((fileToCheck.name == "$version.json")) file =
-							fileToCheck
-						if (file == null)
+						catch (e: GHFileNotFoundException)
 						{
-							printStream.println("Version $version of package $packageName not found")
-							return
+							noSuch("package", packageName)
 						}
-						printStream.println("Found package, installing...")
-						val packageFiles = parser.parse(String(file.read().readAllBytes())) as JSONArray
-						val packageFolder = Folder(packageName, rootFolder.getFolder("packages"))
-						rootFolder.getFolder("packages")!!.addFolder(packageFolder)
-						addFolderToJSON(packageFolder, rootFolder.getFolder("packages")!!)
-						run {
-							@Suppress("SpellCheckingInspection") val vversionFile = File("VERSION", packageFolder)
-							vversionFile.contents = version
-							packageFolder.addFile(vversionFile)
-							this.addFileToJSON(vversionFile, packageFolder)
-						}
-						for (fileToInstall: Any? in packageFiles)
+						catch (ignored: ParseException)
 						{
-							val fileToInstallJSON = fileToInstall as JSONObject
-							val fileName = fileToInstallJSON["name"] as String + '.' + fileToInstallJSON["type"]
-							val fileContents = fileToInstallJSON["contents"] as String
-							val installFile = File(fileName, packageFolder)
-							installFile.contents = fileContents
-							packageFolder.addFile(installFile)
-							addFileToJSON(installFile, packageFolder)
 						}
-						updateJSONFile(rootObject.toJSONString())
-						printStream.println("Package installed successfully")
-					}
-					catch (e: GHFileNotFoundException)
-					{
-						noSuch("package", packageName)
-					}
-					catch (ignored: ParseException)
-					{
 					}
 				}
+
+				"remove"  ->
+				{
+					if (args.size < 2)
+					{
+						printStream.println("remove expects 1 or more arguments")
+						return
+					}
+
+					val currFolderCopy = currentFolder
+					currentFolder = rootFolder.getFolder("packages")!!
+					for (i in 1 until args.size)
+					{
+						printStream.println("Removing package ${args[i]}")
+						rmdir(arrayOf(args[i]))
+					}
+					currentFolder = currFolderCopy
+				}
+
 				"list"    ->
 				{
-					val packageFolder = rootFolder.getFolder("packages")
-					try
-					{
-						// Use reflection to get and list all subfolders of packages class
-						val f = packageFolder!!.javaClass.getDeclaredField("folders")
-						f.isAccessible = true
-						@Suppress("UNCHECKED_CAST")
-						val folders = f[packageFolder] as ArrayList<Folder>
-						for (folder: Folder in folders) printStream.println(folder.name)
-					}
-					catch (ignored: NoSuchFieldException)   {}
-					catch (ignored: IllegalAccessException) {}
+					val packageFolder = rootFolder.getFolder("packages")!!
+					for (folder in packageFolder.folders)
+						printStream.println(folder.name)
 				}
+
 				else      ->
 				{
 					if (args[0].isEmpty() || args[0].startsWith("\t") || args[0].startsWith("\u001b")) return
@@ -651,8 +747,175 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	fun pwd()
 	{
-		printStream.println(currentFullPath)
+		printStream.println(currentFolder.fullPath)
 	}
+
+	fun cat(args: Array<String>)
+	{
+		for (arg in args)
+		{
+			val file = currentFolder.getFile(arg)
+			if (file == null)
+			{
+				noSuch("file", arg)
+				return
+			}
+			printStream.println(file.contents)
+		}
+	}
+
+	fun size(args: Array<String>)
+	{
+		if (args.size != 1)
+		{
+			printStream.println("size takes 1 argument")
+			return
+		}
+
+		val name = args[0]
+		val file = currentFolder.getFile(name)
+		val folder = currentFolder.getFolder(name)
+
+		if (file != null)
+			printStream.println("${file.fullName} - ${file.contents.length} bytes")
+		else if (folder != null)
+		{
+			var totalSize = 0
+
+			fun countFolderSize(folder: Folder): Int
+			{
+				var count = 0
+
+				for (_folder in folder.folders)
+					count += countFolderSize(_folder)
+				for (_file in folder.files)
+					count += _file.contents.length
+
+				return count
+			}
+
+			fun printFolderSizes(folder: Folder, tabCount: Int)
+			{
+				val folderSize = countFolderSize(folder)
+				printStream.println("  ".repeat(tabCount) + "${folder.name}/ - $folderSize bytes")
+
+				for (_folder in folder.folders)
+					printFolderSizes(_folder, tabCount + 1)
+				for (_file in folder.files)
+				{
+					val size = _file.contents.length
+					printStream.println("  ".repeat(tabCount + 1) + "${_file.fullName} - $size bytes")
+				}
+			}
+
+			for (_folder in folder.folders)
+				totalSize += countFolderSize(_folder)
+			for (_file in folder.files)
+				totalSize += _file.contents.length
+
+			printStream.println("${folder.name}/ - $totalSize bytes")
+
+			for (_folder in folder.folders)
+				printFolderSizes(_folder, 1)
+			for (_file in folder.files)
+			{
+				val size = _file.contents.length
+				printStream.println("${_file.fullName} - $size bytes")
+			}
+		}
+		else
+		{
+			noSuch("folder or file", name)
+			printStream.println("Are you in the root directory?")
+		}
+	}
+
+	fun file(args: Array<String>)
+	{
+		for (arg in args)
+		{
+			val file = currentFolder.getFile(arg)
+			val folder = currentFolder.getFolder(arg)
+
+			printStream.print("$arg: ")
+			if (file != null)
+			{
+				when (file.type)
+				{
+					"txt"  ->
+					{
+						printStream.println("Text file")
+					}
+
+					"urcl" ->
+					{
+						printStream.println("URCL file")
+					}
+
+					else  ->
+					{
+						printStream.println("Data")
+					}
+				}
+			}
+
+			else if (folder != null)
+				printStream.println("Directory")
+
+			else
+			{
+				noSuch("folder or file", arg)
+			}
+		}
+	}
+
+	fun fedit(args: Array<String>)
+	{
+		if (args.size < 3)
+		{
+			printStream.println("fedit needs at least 3 arguments")
+			printStream.println(
+				"""
+				1. Flag
+				2. Filename
+				3. Contents
+				""".trimIndent()
+			)
+			return
+		}
+
+		val flag = args[0]
+		val file = currentFolder.getFile(args[1])
+		var newContents = ""
+		for (i in 2 until args.size) newContents += args[i] + ' '
+
+		if (file == null)
+		{
+			noSuch("file", args[1])
+			return
+		}
+
+		val replaceLinePatten = Pattern.compile("(?m)^-r(\\d+)$")
+		var matcher: Matcher
+
+		if ((replaceLinePatten.matcher(flag).also { matcher = it }).matches())
+		{
+			val line = matcher.group(1).toInt()
+			val lines = ArrayList(listOf(*file.contents
+				.split("\\n".toRegex()).dropLastWhile { it.isEmpty() }
+				.toTypedArray()))
+			lines[line - 1] = newContents
+
+			file.contents = lines.joinToString(separator="\n")
+		}
+		else if (flag == "-o")
+			file.contents = newContents
+		else if (flag == "-a")
+			file.contents += newContents
+
+		updateFileToJSON(file)
+	}
+
 
 	private fun vim(args: Array<String>)
 	{
@@ -715,16 +978,18 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 		val savePattern = Pattern.compile("(?m)^:s$")
 		// Quit
 		val quitPattern = Pattern.compile("(?m)^:q$")
+
 		while (true)
 		{
 			// Clear screen and move cursor to top left
-			print("\u001b[H\u001b[J")
+			print("\u001b[H\u001b[J\u001b[3J")
 
 			// Print all lines
 			for (i in lines.indices) println((i + 1).toString() + " - " + lines[i])
 
 			// Make 2 lines of space
-			for (i in 0..1) printStream.println()
+			printStream.println()
+			printStream.println()
 
 			// Move cursor to bottom of screen
 			printStream.print("\u001b[999E")
@@ -781,9 +1046,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			else if (savePattern.matcher(input).matches())
 			{
 				// Save file
-				val newContents = StringBuilder()
-				for (line: String in lines) newContents.append(line).append("\n")
-				file.contents = newContents.toString()
+				file.contents = lines.joinToString(separator="\n")
 
 				// Print success message
 				printStream.print("\u001b[1F")
@@ -850,7 +1113,6 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 	private fun updateCurrentPath()
 	{
 		currentPath = currentFolder.name
-		currentFullPath = currentFolder.fullPath
 	}
 
 	private fun noSuch(errName: String, thing: String)
@@ -972,7 +1234,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 
 	private fun updateFileToJSON(file: File)
 	{
-		val paths = currentFullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
+		val paths = currentFolder.fullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
 			.toTypedArray()
 		var currFolder = rootObject["root"] as JSONArray
 		var currObj: JSONObject? = null
@@ -993,7 +1255,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			printStream.println("Cannot modify root folder")
 			return
 		}
-		val paths = currentFullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
+		val paths = currentFolder.fullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
 			.toTypedArray()
 		var currFolder = rootObject["root"] as JSONArray
 		var currObj: JSONObject?
@@ -1030,7 +1292,7 @@ class Shell(private val `in`: InputStream, private val printStream: PrintStream)
 			printStream.println("Cannot modify root folder")
 			return
 		}
-		val paths = currentFullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
+		val paths = currentFolder.fullPath.split("/".toRegex()).dropLastWhile { it.isEmpty() }
 			.toTypedArray()
 		var currFolder = rootObject["root"] as JSONArray
 		var currObj: JSONObject?
